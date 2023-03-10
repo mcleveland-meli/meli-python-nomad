@@ -1,0 +1,28 @@
+[tool.poetry]
+name = "Meli python_nomad"
+version = "0.1.1"
+description = "Nomad for Meli"
+authors = ["mcleveland-meli <mauricio.cleveland@mercadolibre.cl>"]
+packages = [
+    { include = "nomad"},
+    { include = "nomad/api"},
+]
+classifiers = [
+    'Programming Language :: Python :: 3.8',
+    'Programming Language :: Python :: 3.9',
+    'Programming Language :: Python :: 3.10',
+]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+"melitk.restclient" = "^2.3.18"
+
+[tool.poetry.dev-dependencies]
+
+[[tool.poetry.source]]
+name = "meli"
+url = "https://pypi.artifacts.furycloud.io/simple/"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

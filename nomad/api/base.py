@@ -1,9 +1,9 @@
-import requests
+from melitk.restclient import new_restclient, FlowHeader
+from melitk.restclient.exceptions import ConnectTimeout
 import nomad.api.exceptions
 
-from requests.packages.urllib3.exceptions import InsecureRequestWarning
-requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
+requests = new_restclient(config={'REDIRECT': True})
 
 class Requester(object):
 
@@ -19,7 +19,7 @@ class Requester(object):
         self.verify = verify
         self.cert = cert
         self.address = address
-        self.session = session or requests.Session()
+        self.session = requests
         self.region = region
 
     def _endpoint_builder(self, *args):
@@ -66,6 +66,9 @@ class Requester(object):
         if not isinstance(params, dict):
             params = {}
 
+        if params.get("prefix") is None:
+            params.update({"prefix": ""})
+
         if ("namespace" not in params) and (self.namespace and self._required_namespace(endpoint)):
             qs["namespace"] = self.namespace
 
@@ -83,14 +86,13 @@ class Requester(object):
             data=kwargs.get("data", None),
             json=kwargs.get("json", None),
             headers=kwargs.get("headers", None),
-            allow_redirects=kwargs.get("allow_redirects", False),
             timeout=kwargs.get("timeout", self.timeout),
             stream=kwargs.get("stream", False)
         )
 
         return response
 
-    def _request(self, method, endpoint, params=None, data=None, json=None, headers=None, allow_redirects=None, timeout=None, stream=False):
+    def _request(self, method, endpoint, params=None, data=None, json=None, headers=None, timeout=None, stream=False):
         url = self._url_builder(endpoint)
         qs = self._query_string_builder(endpoint=endpoint, params=params)
 
@@ -110,50 +112,34 @@ class Requester(object):
         try:
             method = method.lower()
             if method == "get":
-                response = self.session.get(
-                    allow_redirects=allow_redirects,
-                    cert=self.cert,
-                    headers=headers,
-                    params=params,
-                    stream=stream,
-                    timeout=timeout,
-                    url=url,
-                    verify=self.verify,
-                )
+                with FlowHeader(headers) as new_headers:
+                    response = self.session.get(
+                        url,
+                        headers=new_headers,
+                        params=params,
+                    )
 
             elif method == "post":
-                response = self.session.post(
-                    allow_redirects=allow_redirects,
-                    cert=self.cert,
-                    data=data,
-                    headers=headers,
-                    json=json,
-                    params=params,
-                    timeout=timeout,
-                    url=url,
-                    verify=self.verify,
-                )
+                with FlowHeader(headers) as new_headers:
+                    response = self.session.post(
+                        url,
+                        headers=new_headers,
+                        json=json,
+                    )
             elif method == "put":
-                response = self.session.put(
-                    cert=self.cert,
-                    data=data,
-                    headers=headers,
-                    json=json,
-                    params=params,
-                    timeout=timeout,
-                    url=url,
-                    verify=self.verify,
-                )
+                with FlowHeader(headers) as new_headers:
+                    response = self.session.put(
+                        url,
+                        headers=new_headers,
+                        json=json,
+                    )
             elif method == "delete":
-                response = self.session.delete(
-                    cert=self.cert,
-                    headers=headers,
-                    params=params,
-                    timeout=timeout,
-                    url=url,
-                    verify=self.verify,
-                )
-
+                with FlowHeader(headers) as new_headers:
+                    response = self.session.delete(
+                        url,
+                        headers=new_headers,
+                        params=params,
+                    )
             if response.ok:
                 return response
             elif response.status_code == 400:
@@ -165,11 +151,9 @@ class Requester(object):
             else:
                 raise nomad.api.exceptions.BaseNomadException(response)
 
-        except requests.exceptions.ConnectionError as error:
-            if all([stream, timeout]):
+        except ConnectTimeout as error:
+            if timeout:
                 raise nomad.api.exceptions.TimeoutNomadException(error)
 
-            raise nomad.api.exceptions.BaseNomadException(error)
-
-        except requests.RequestException as error:
+        except Exception as error:
             raise nomad.api.exceptions.BaseNomadException(error)
